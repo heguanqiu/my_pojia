@@ -147,13 +147,11 @@ class CTFConfigInstaller:
         if existing_content and not existing_content.endswith('\n'):
             existing_content += '\n'
 
-        # 提取 CTF profile 部分并添加
+        # 提取 CTF profile 部分并添加（不改变模型设置）
         ctf_profile = '''
 
 # 安全测试模式（由 codex-session-patcher 添加）
 [profiles.ctf]
-model = "gpt-5.4"
-model_reasoning_effort = "xhigh"
 model_instructions_file = "~/.codex/prompts/security_mode.md"
 developer_instructions = """
 You are working in a security testing environment.
