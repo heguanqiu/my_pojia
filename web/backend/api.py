@@ -1260,7 +1260,15 @@ async def save_ctf_prompt(tool: str, body: dict):
 
     prompt_path = _CTF_PROMPT_PATHS[tool]
 
-    # 已安装：直接更新文件
+    # 查找匹配的内置模板，获取其目标文件名
+    from codex_session_patcher.ctf_config.templates import BUILTIN_TEMPLATES
+    matched_file = None
+    for tpl in BUILTIN_TEMPLATES.get(tool, []):
+        if tpl.get('file') and tpl['prompt'].strip() == prompt.strip():
+            matched_file = tpl['file']
+            break
+
+    # 已安装：写入对应文件
     if os.path.exists(prompt_path):
         try:
             with open(prompt_path, 'w', encoding='utf-8') as f:
@@ -1268,11 +1276,13 @@ async def save_ctf_prompt(tool: str, body: dict):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"写入文件失败: {e}")
 
-    # 同时保存到配置（供安装时使用）
+    # 保存到配置（供安装时使用）
     config = _load_raw_config()
     ctf_prompts = config.setdefault('ctf_prompts', {})
     tool_config = ctf_prompts.setdefault(tool, {})
     tool_config['prompt'] = prompt
+    if matched_file:
+        tool_config['file'] = matched_file
     _save_raw_config(config)
 
     return {"success": True, "message": "提示词已保存"}

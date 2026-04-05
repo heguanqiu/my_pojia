@@ -13,6 +13,7 @@ from .templates import (
     CTF_CONFIG_TEMPLATE, SECURITY_MODE_PROMPT,
     CLAUDE_CODE_SECURITY_MODE_PROMPT, CLAUDE_CODE_CTF_README,
     OPENCODE_SECURITY_MODE_PROMPT, OPENCODE_CTF_CONFIG, OPENCODE_CTF_README,
+    BUILTIN_TEMPLATES,
 )
 from .status import (
     check_ctf_status, CTFStatus, GLOBAL_MARKER, CTF_MARKER,
@@ -23,18 +24,45 @@ from .status import (
 class CTFConfigInstaller:
     """CTF 配置安装器"""
 
+    DEFAULT_PROMPT_FILE = "ctf_optimized.md"
+
     def __init__(self):
         self.codex_dir = os.path.expanduser("~/.codex")
         self.config_path = os.path.join(self.codex_dir, "config.toml")
         self.prompts_dir = os.path.join(self.codex_dir, "prompts")
-        self.prompt_path = os.path.join(self.prompts_dir, "security_mode.md")
+
+    def _get_prompt_file(self) -> str:
+        """从用户配置获取当前选中的模板文件名，没有则返回默认"""
+        try:
+            from ..config_manager import ConfigManager
+            config = ConfigManager().load_config()
+            return config.get('ctf_prompts', {}).get('codex', {}).get('file') or self.DEFAULT_PROMPT_FILE
+        except Exception:
+            return self.DEFAULT_PROMPT_FILE
+
+    def _get_prompt_content(self) -> str:
+        """从用户配置获取当前选中的模板内容，没有则使用默认"""
+        try:
+            from ..config_manager import ConfigManager
+            config = ConfigManager().load_config()
+            saved = config.get('ctf_prompts', {}).get('codex', {}).get('prompt')
+            if saved:
+                return saved
+        except Exception:
+            pass
+        # 使用默认模板
+        from .templates import BUILTIN_TEMPLATES
+        for tpl in BUILTIN_TEMPLATES.get('codex', []):
+            if tpl.get('default'):
+                return tpl['prompt']
+        return BUILTIN_TEMPLATES['codex'][0]['prompt']
 
     def install(self, custom_prompt: str = None) -> tuple[bool, str]:
         """
         安装 Profile 模式（自动禁用 Global 模式）
 
         Args:
-            custom_prompt: 自定义提示词内容，为 None 时使用默认模板
+            custom_prompt: 自定义提示词内容，为 None 时从配置/默认模板读取
 
         Returns:
             tuple[bool, str]: (是否成功, 消息)
@@ -49,24 +77,28 @@ class CTFConfigInstaller:
                 if success:
                     details.append("✓ 已自动禁用全局模式")
 
-            # 2. 确保 prompts 目录存在
+            # 2. 确定 prompt 文件名和内容
+            prompt_file = self._get_prompt_file()
+            prompt_path = os.path.join(self.prompts_dir, prompt_file)
+            prompt_content = custom_prompt or self._get_prompt_content()
+
+            # 3. 确保 prompts 目录存在
             os.makedirs(self.prompts_dir, exist_ok=True)
 
-            # 3. 备份现有配置（如果存在）
+            # 4. 备份现有配置（如果存在）
             backup_path = None
             if os.path.exists(self.config_path):
                 backup_path = self._backup_config()
 
-            # 4. 写入 security_mode.md
-            prompt_content = custom_prompt or SECURITY_MODE_PROMPT_OPTIMIZED
-            with open(self.prompt_path, 'w', encoding='utf-8') as f:
+            # 5. 写入 prompt 文件
+            with open(prompt_path, 'w', encoding='utf-8') as f:
                 f.write(prompt_content)
 
-            # 5. 更新或创建 config.toml
-            profile_added = self._update_config()
+            # 6. 更新或创建 config.toml（使用正确的文件名）
+            profile_added = self._update_config(prompt_file)
 
             # 构建详细消息
-            details.append(f"✓ 已创建安全测试提示词: {self.prompt_path}")
+            details.append(f"✓ 已创建安全测试提示词: {prompt_path}")
             if backup_path:
                 details.append(f"✓ 已备份原配置到: {backup_path}")
             if profile_added:
@@ -90,11 +122,15 @@ class CTFConfigInstaller:
         try:
             details = []
 
-            # 1. 删除 security_mode.md（仅当 Global 模式未启用时）
+            # 1. 删除 prompt 文件（仅当 Global 模式未启用时）
             status = check_ctf_status()
-            if not status.global_installed and os.path.exists(self.prompt_path):
-                os.remove(self.prompt_path)
-                details.append(f"✓ 已删除提示词文件: {self.prompt_path}")
+            if not status.global_installed:
+                # 删除所有由本工具写入的 prompt 文件
+                for f in os.listdir(self.prompts_dir) if os.path.exists(self.prompts_dir) else []:
+                    if f.endswith('.md'):
+                        fp = os.path.join(self.prompts_dir, f)
+                        os.remove(fp)
+                        details.append(f"✓ 已删除提示词文件: {fp}")
 
             # 2. 从 config.toml 中移除 CTF profile
             removed = self._remove_ctf_profile()
@@ -124,12 +160,17 @@ class CTFConfigInstaller:
         except Exception:
             return None
 
-    def _update_config(self) -> bool:
+    def _update_config(self, prompt_file: str = None) -> bool:
         """更新配置文件，添加 CTF profile
+
+        Args:
+            prompt_file: prompt 文件名（不含路径），默认使用 DEFAULT_PROMPT_FILE
 
         Returns:
             bool: 是否添加了新的 profile（False 表示已存在）
         """
+        import re
+        filename = prompt_file or self.DEFAULT_PROMPT_FILE
         existing_content = ""
 
         # 读取现有配置
@@ -139,20 +180,26 @@ class CTFConfigInstaller:
 
         # 检查是否已有 [profiles.ctf]
         if '[profiles.ctf]' in existing_content:
-            # 已存在，不需要添加
+            # 已存在，更新 model_instructions_file 指向新文件
+            new_content = re.sub(
+                r'model_instructions_file\s*=\s*"[^"]*"',
+                f'model_instructions_file = "~/.codex/prompts/{filename}"',
+                existing_content,
+            )
+            if new_content != existing_content:
+                with open(self.config_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
             return False
 
         # 添加 CTF profile 到现有配置末尾
-        # 如果现有配置不以换行结尾，添加一个
         if existing_content and not existing_content.endswith('\n'):
             existing_content += '\n'
 
-        # 提取 CTF profile 部分并添加（不改变模型设置）
-        ctf_profile = '''
+        ctf_profile = f'''
 
 # 安全测试模式（由 codex-session-patcher 添加）
 [profiles.ctf]
-model_instructions_file = "~/.codex/prompts/security_mode.md"
+model_instructions_file = "~/.codex/prompts/{filename}"
 '''
 
         new_content = existing_content + ctf_profile
@@ -214,24 +261,25 @@ model_instructions_file = "~/.codex/prompts/security_mode.md"
         """
         try:
             details = []
-            target_config = 'model_instructions_file = "~/.codex/prompts/security_mode.md"'
 
-            # 1. 先卸载 Profile 模式（如果已启用）
+            # 1. 确定模板文件
+            prompt_file = self._get_prompt_file()
+            prompt_path = os.path.join(self.prompts_dir, prompt_file)
+            target_config = f'model_instructions_file = "~/.codex/prompts/{prompt_file}"'
+
+            # 2. 先卸载 Profile 模式（如果已启用）
             status = check_ctf_status()
             if status.profile_available:
                 removed = self._remove_ctf_profile()
                 if removed:
                     details.append("✓ 已自动禁用 Profile 模式")
 
-            # 2. 确保 prompts 目录和 security_mode.md 存在
+            # 3. 确保 prompts 目录存在，写入 prompt 文件
             os.makedirs(self.prompts_dir, exist_ok=True)
-            prompt_created = not os.path.exists(self.prompt_path)
-            with open(self.prompt_path, 'w', encoding='utf-8') as f:
-                f.write(SECURITY_MODE_PROMPT_OPTIMIZED)
-            if prompt_created:
-                details.append(f"✓ 已创建安全测试提示词: {self.prompt_path}")
-            else:
-                details.append(f"✓ 已更新安全测试提示词: {self.prompt_path}")
+            prompt_content = self._get_prompt_content()
+            with open(prompt_path, 'w', encoding='utf-8') as f:
+                f.write(prompt_content)
+            details.append(f"✓ 已写入安全测试提示词: {prompt_path}")
 
             # 3. 备份 config.toml
             backup_path = None

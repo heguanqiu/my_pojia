@@ -35,11 +35,12 @@ model_instructions_file = "~/.codex/prompts/security_mode.md"
 
 
 # 各工具的内置模板（用于 UI 模板选择器的预置选项）
+# file 字段：该模板在 ~/.codex/prompts/ 下的目标文件名
 BUILTIN_TEMPLATES: dict = {
     'codex': [
-        {'name': 'Optimized CTF Workflow', 'prompt': SECURITY_MODE_PROMPT_OPTIMIZED, 'default': True},
-        {'name': 'CTF Private Deploy', 'prompt': SECURITY_MODE_PROMPT},
-        {'name': 'General Security Testing', 'prompt': SECURITY_MODE_PROMPT_GENERAL},
+        {'name': 'Optimized CTF Workflow', 'prompt': SECURITY_MODE_PROMPT_OPTIMIZED, 'file': 'ctf_optimized.md', 'default': True},
+        {'name': 'CTF Private Deploy', 'prompt': SECURITY_MODE_PROMPT, 'file': 'ctf_private_deploy.md'},
+        {'name': 'General Security Testing', 'prompt': SECURITY_MODE_PROMPT_GENERAL, 'file': 'ctf_general.md'},
     ],
     'claude_code': [
         {'name': 'Optimized CTF Workflow', 'prompt': SECURITY_MODE_PROMPT_OPTIMIZED, 'default': True},
