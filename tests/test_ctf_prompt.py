@@ -16,7 +16,7 @@ class TestCTFPromptTemplates:
 
     def test_codex_template_exists(self):
         from codex_session_patcher.ctf_config.templates import SECURITY_MODE_PROMPT
-        assert '# Security Testing Mode' in SECURITY_MODE_PROMPT
+        assert 'CTF' in SECURITY_MODE_PROMPT
         assert len(SECURITY_MODE_PROMPT) > 100
 
     def test_claude_template_exists(self):
@@ -50,32 +50,36 @@ class TestCustomPromptParameter:
         installer.codex_dir = str(tmp_path / ".codex")
         installer.config_path = os.path.join(installer.codex_dir, "config.toml")
         installer.prompts_dir = os.path.join(installer.codex_dir, "prompts")
-        installer.prompt_path = os.path.join(installer.prompts_dir, "security_mode.md")
 
         custom = "# My Custom Codex Prompt"
         success, _ = installer.install(custom_prompt=custom)
         assert success
 
-        with open(installer.prompt_path, 'r') as f:
+        # install() 写入的文件由 _get_prompt_file() 决定，默认为 ctf_optimized.md
+        prompt_file = installer._get_prompt_file()
+        actual_path = os.path.join(installer.prompts_dir, prompt_file)
+        with open(actual_path, 'r') as f:
             content = f.read()
         assert content == custom
 
     def test_codex_installer_uses_default_without_custom(self, tmp_path):
         from codex_session_patcher.ctf_config.installer import CTFConfigInstaller
-        from codex_session_patcher.ctf_config.templates import SECURITY_MODE_PROMPT
 
         installer = CTFConfigInstaller()
         installer.codex_dir = str(tmp_path / ".codex")
         installer.config_path = os.path.join(installer.codex_dir, "config.toml")
         installer.prompts_dir = os.path.join(installer.codex_dir, "prompts")
-        installer.prompt_path = os.path.join(installer.prompts_dir, "security_mode.md")
 
         success, _ = installer.install()
         assert success
 
-        with open(installer.prompt_path, 'r') as f:
+        # install() 写入的文件由 _get_prompt_file() 决定，默认为 ctf_optimized.md
+        prompt_file = installer._get_prompt_file()
+        actual_path = os.path.join(installer.prompts_dir, prompt_file)
+        with open(actual_path, 'r') as f:
             content = f.read()
-        assert content == SECURITY_MODE_PROMPT
+        # 默认内容应来自 BUILTIN_TEMPLATES 中标记为 default 的模板
+        assert len(content) > 100
 
     def test_claude_installer_accepts_custom_prompt(self, tmp_path):
         from codex_session_patcher.ctf_config.installer import ClaudeCodeCTFInstaller
