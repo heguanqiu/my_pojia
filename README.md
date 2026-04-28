@@ -303,8 +303,4 @@ codex-session-patcher/
 
 ---
 
-<div align="center">
-  <a href="https://github.com/ryfineZ">GitHub</a> ·
-  <a href="https://x.com/ZhangYufan73644">X (Twitter)</a> ·
-  微信公众号：钢之AI术师
-</div>
+
