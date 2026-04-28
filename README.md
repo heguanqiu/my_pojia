@@ -65,6 +65,18 @@
 
 ## 安装
 
+### 一键安装（推荐）
+
+```bash
+git clone https://github.com/ryfineZ/codex-session-patcher.git
+cd codex-session-patcher
+./scripts/install.sh
+```
+
+脚本会交互式选择安装 CLI 或 Web UI，自动创建虚拟环境，并生成 `codex-patcher` / `codex-patcher-web` 启动命令。
+
+### 手动安装
+
 ```bash
 git clone https://github.com/ryfineZ/codex-session-patcher.git
 cd codex-session-patcher

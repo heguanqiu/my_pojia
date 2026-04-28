@@ -65,6 +65,18 @@ AI coding tools (Codex, Claude Code, OpenCode) frequently refuse security-relate
 
 ## Installation
 
+### One-click install (Recommended)
+
+```bash
+git clone https://github.com/ryfineZ/codex-session-patcher.git
+cd codex-session-patcher
+./scripts/install.sh
+```
+
+The script lets you choose CLI-only or Web UI installation, creates a virtual environment, and installs `codex-patcher` / `codex-patcher-web` launch commands.
+
+### Manual install
+
 ```bash
 git clone https://github.com/ryfineZ/codex-session-patcher.git
 cd codex-session-patcher
